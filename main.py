@@ -37,7 +37,6 @@ class SchedulingProblem:
         self.max_time = sum(self.p) * 1.5
         self.M = 2 * self.max_time
         if self.improved:
-            #print("[debug] Using improved model")
             self.L = {i: [Binary(f'L_{i}_{b}') for b in range(ceil(log2(self.max_time)) + 1)] for i in range(self.n)}
         else:
             self.S = {i: Integer(f'S_{i}', lower_bound=0, upper_bound=self.max_time) for i in range(self.n)}  # Job start times
@@ -69,7 +68,6 @@ class SchedulingProblem:
                 )
 
     def add_L_constraints(self):
-#        assert not self.eiui, "TODO: improved eiui"
         for i in range(self.n):
             L_i = eval_u2(self.L[i])
 
@@ -142,8 +140,6 @@ class SchedulingProblem:
                 self.cqm.set_objective(sum(self.w[i] * self.T[i] for i in range(self.n)))
 
     def solve_cqm(self):
-        #print('Using LeapHybrid (CQM)')
-        #sampler = ExactCQMSolver()
         sampler = LeapHybridCQMSampler()
         result = sampler.sample_cqm(self.cqm)
 
@@ -198,8 +194,7 @@ class SchedulingProblem:
         bqm, invert_map = cqm_to_bqm(self.cqm)
         bqm.normalize()
 
-        # Count slack variables (strings starting with 'slack_')
-        slack_count = 0#sum(1 for var in bqm.variables if isinstance(var, str) and var.startswith('slack'))
+        slack_count = 0
         for var in bqm.variables:
             if isinstance(var, tuple):
                 var = var[0]
@@ -213,10 +208,8 @@ class SchedulingProblem:
         }
 
         if self.solver == 'simulator':
-            #print('Using simulator')
             sampler = SimulatedAnnealingSampler()
         elif self.solver == 'quantum':
-            #print('Using QPU')
             sampler = EmbeddingComposite(DWaveSampler())
         result = sampler.sample(bqm, num_reads=self.num_reads, embedding_parameters=dict(timeout=60))
         best_solution = result.first.sample
@@ -227,7 +220,6 @@ class SchedulingProblem:
         decoded_solution = invert_map(best_solution)
 
         if self.improved:
-            #
             schedule = {}
             width = ceil(log2(self.max_time))
             for i in range(self.n):
@@ -385,28 +377,6 @@ class Solution:
             if newS[i] + p[order[i]] > newS[i+1]:
                 newS[i+1] = newS[i] + p[order[i]]
 
-        #goOn = True
-        #leftToRight = True
-        #while goOn:
-        #    goOn = False
-        #    if leftToRight:
-        #        for i in range(n - 1):
-        #            if newS[i] + p[order[i]] > newS[i + 1]:
-        #                print(f'LtR')
-        #                print(f'    i={i}, newS', newS, ', order', order, ', p', p)
-        #                newS[i] = newS[i + 1] - p[order[i]]
-        #                goOn = True
-        #                break
-        #    else:
-        #        for i in range(n - 1, 0, -1):
-        #            if newS[i] < newS[i - 1] + p[order[i - 1]]:
-        #                print(f'RtL')
-        #                print(f'    i={i}, newS', newS, ', order', order, ', p', p)
-        #                newS[i] = newS[i - 1] + p[order[i - 1]]
-        #                goOn = True
-        #                break
-        #    leftToRight = not leftToRight
-
         if newS[0] < 0:
             newS[0] = 0
         for i in range(n - 1):
@@ -456,14 +426,6 @@ if __name__ == "__main__":
     problem.define_objective()
     solution, solution2, counts = problem.solve()
 
-    #print("Instance:")
-    #print("p:", p)
-    #print("d:", d)
-    #print("w:", w)
-    #print("")
-
-    #if solution:
-        #print("\nOptimal Schedule:")
     if args.improved:
         soln = Solution.from_L(problem.n, solution, p, d, w, u if args.eiui else None)
     else:
@@ -477,11 +439,6 @@ if __name__ == "__main__":
         soln = Solution.from_S(problem.n, solution2, p, d, w, u if args.eiui else None)
     soln = soln.fixup()
     cost2 = soln.cost()
-
-    print("p =", p)
-    print("w =", w)
-    print("d =", d)
-    print("u =", u)
 
     # n, seed, TF, RDD, w/u, noL/L, Q/H, cost, vars, slack, total
     print(','.join(map(str, [
@@ -497,5 +454,3 @@ if __name__ == "__main__":
         counts['slacks'],
         counts['total']
     ])))
-    #else:
-    #    print("No solution found.")
